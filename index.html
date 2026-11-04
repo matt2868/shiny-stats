@@ -1153,17 +1153,19 @@ async function ghSync() {
 /** Photos live beside the file, one each: upload ones GitHub hasn't got, download ones this device hasn't got. */
 async function ghPhotos() {
   const list = await ghApi("photos"), have = new Set((Array.isArray(list) ? list : []).map(x => x.name));
-  let got = 0;
+  let got = 0, total = 0, noBlob = 0;
   for (const e of [...S.entries.values()]) for (const ref of photoRefs(e)) {
+    if (e.deleted) continue; total++;
     if (have.has(ref.key)) {
       if (photoURL.has(ref.key)) continue;
       const f = await ghRead("photos/" + ref.key); if (f) { await storePhotoBlob(ref.key, new Blob([f.bytes], { type: sniff(f.bytes) })); got++; }
     } else {
-      const b = await blobFor(ref.key); if (!b) continue;
+      const b = await blobFor(ref.key); if (!b) { noBlob++; continue; }
       try { await ghApi("photos/" + ref.key, { method: "PUT", body: JSON.stringify({ message: "Photo", content: b64enc(new Uint8Array(await b.arrayBuffer())) }) }); have.add(ref.key); }
       catch (err) { if (err.status !== 422) throw err; }   // already there
     }
   }
+  gh.ph = { total, up: total - noBlob, noBlob };
   if (got) render();
 }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") { if (ghOn() && gh.timer) { clearTimeout(gh.timer); ghSync(); } } else scheduleGh(800); });
@@ -2688,6 +2690,7 @@ function viewBackup() {
     ${hasClaude() ? "" : `<div class="card" style="display:flex;flex-direction:column;gap:12px">
       <h2 style="font-size:19px">Sync between devices</h2>
       ${ghOn() ? `<p class="muted" style="margin:0;font-size:14px">Syncing with <b>${esc(gh.cfg.repo)}</b> on GitHub. Changes go up within a minute, or straight away when you switch away from the app, and come down whenever you open it.</p>
+        ${gh.ph && gh.ph.total ? `<span class="muted" style="font-size:13px">Photos: ${gh.ph.up} of ${gh.ph.total} on GitHub.${gh.ph.noBlob ? ` ${gh.ph.noBlob} aren't on this device or GitHub yet: import a JSON export that has them, then sync.` : ""}</span>` : ""}
         <div class="row"><button class="btn primary" data-act="gh-sync">Sync now</button><button class="btn ghost" data-act="gh-off">Disconnect</button></div>`
       : `<p class="muted" style="margin:0;font-size:14px">Keep your hunts and photos in a private GitHub repository, so every device with this app stays in step.</p>
         <div class="field"><label class="label" for="gh-repo">Private repository</label><input id="gh-repo" placeholder="yourname/shiny-stats-data" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc((gh.cfg && gh.cfg.repo) || "")}"></div>

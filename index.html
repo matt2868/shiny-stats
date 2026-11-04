@@ -3098,7 +3098,13 @@ function wireTime(sh, e) {
 }
 function wireFormBox(sh, e) {
   const fs = $("#f-form", sh), dx = $("#f-dex", sh), nm = $("#f-name", sh); if (!fs) return;
-  const redo = () => { const probe = { ...e, name: nm.value, species: DEXKEY.get(nameKey(dx.value)) || null }; const v = fs.value; fs.innerHTML = formOptions(speciesOf(probe).dex, v); };
+  const hint = $("#f-dexhint", sh);
+  // the dex box follows the name as you type, until you pick a species yourself
+  let auto = !dx.value || DEXKEY.get(nameKey(dx.value)) === resolveName(nm.value).dex;
+  const probe = () => { const di = DEXKEY.get(nameKey(dx.value)) || 0; return { ...e, name: nm.value.trim(), species: di && di !== resolveName(nm.value).dex ? di : null }; };
+  const redo = () => { const v = fs.value; fs.innerHTML = formOptions(speciesOf(probe()).dex, v); if (hint) hint.innerHTML = dexHint(probe()); };
+  nm.addEventListener("input", () => { if (auto) { const r = resolveName(nm.value); dx.value = r.dex ? DEX[r.dex - 1] : ""; } redo(); });
+  dx.addEventListener("input", () => { auto = !dx.value.trim(); if (auto) { const r = resolveName(nm.value); if (r.dex) dx.value = DEX[r.dex - 1]; } });
   dx.addEventListener("change", redo); nm.addEventListener("change", redo);
 }
 function wireOdds(sh) {
@@ -3137,7 +3143,6 @@ function addToDex(n, fk) {
     const pend = {}; wireOdds(sh); wirePhoto(sh, e, pend); wireExtras(sh, e); wireFormBox(sh, e); wireTime(sh, e);
     $("#f-method", sh).placeholder = "e.g. Trade, Raid, Gift";
     const nm = $("#f-name", sh), dx = $("#f-dex", sh);
-    nm.addEventListener("input", () => { const r = resolveName(nm.value); if (r.dex) dx.value = DEX[r.dex - 1]; });
     $("[data-act=save]", sh).onclick = async () => {
       if (!nm.value.trim()) { nm.focus(); toast("Enter which Pokémon it is"); return; }
       readForm(sh, e); e.complete = true; e.evolvedTo = sh._evos.slice(); await applyPhoto(e, pend); await applyEvoPhotos(e, sh);

@@ -1093,7 +1093,7 @@ async function ghApi(path, opts = {}) {
   let r;
   try { r = await fetch(`https://api.github.com/repos/${gh.cfg.repo}/contents/${path}`, { ...opts, cache: "no-store", headers: { ...ghHeaders(), ...(opts.body ? { "Content-Type": "application/json" } : {}) } }); }
   catch (err) { const x = new Error("Offline: will sync when you're back online."); x.offline = true; throw x; }
-  if (r.status === 404 && (!opts.method || opts.method === "GET")) return null;
+  if ((r.status === 404 || r.status === 409) && (!opts.method || opts.method === "GET")) return null;   // 409 here means a brand-new, empty repository
   if (!r.ok) {
     const x = new Error(r.status === 401 ? "GitHub refused the token. It may have expired: make a new one and connect again."
       : r.status === 403 ? "The token can't write to that repository. Check it has Contents: Read and write."

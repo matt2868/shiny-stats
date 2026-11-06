@@ -45,7 +45,7 @@ h1,h2,h3{font-family:var(--font-display);font-weight:400;margin:0;text-wrap:bala
 #app{min-height:100%;display:flex;flex-direction:column}
 main{flex:1;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:16px calc(var(--tabbar) + 24px + env(safe-area-inset-bottom, 0px));max-width:760px;width:100%;margin:0 auto}
 .view{display:flex;flex-direction:column;gap:14px}
-.cgrid,.ccol,.sgstack{display:contents}
+.cgrid,.ccol,.sgstack,.sgstack2{display:contents}
 .today{display:flex;flex-direction:column;gap:12px}
 .td-side{display:flex;flex-direction:column;gap:8px;min-width:0}
 .td-hist{border-top:2px dashed var(--line);padding-top:12px}
@@ -60,12 +60,22 @@ main{flex:1;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right
 .td-b i{font-style:normal;font-family:var(--font-label);font-size:8px;color:var(--lcd-mid);line-height:1}
 .td-b.now span{background:var(--amber)}.td-b.on i{color:var(--lcd-ink);text-decoration:underline}.td-b.on span{box-shadow:0 0 0 2px var(--lcd-ink)}
 #pane{display:none}
+.batch,.wideonly{display:none}
+.pbm{display:flex;flex-direction:column;gap:8px;padding:12px 14px}
+.pbr{display:grid;grid-template-columns:minmax(0,7.5em) minmax(0,1fr) 3.4em 4.6em;gap:10px;align-items:center;font-size:13px;color:var(--lcd-ink)}
+.pbn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pbt{height:12px;background:rgb(0 0 0 / .08);border-radius:2px;overflow:hidden}.pbt i{display:block;height:100%;background:var(--lcd-mid)}
+.pbr b{font-family:var(--font-display);font-weight:400;font-size:20px;text-align:right}.pbh{font-size:11px;color:var(--lcd-mid);text-align:right;white-space:nowrap}
 /* unfolded foldables, tablets in landscape, computers: counter on the left, everything else beside it */
 @media (min-width:680px) and (min-aspect-ratio:4/5){
   main:has(.cgrid){max-width:1180px}
   .cgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
   .ccol{display:flex;flex-direction:column;gap:14px;min-width:0}
   .cgrid > .ccol:first-child{position:sticky;top:12px}
+  .batch{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+  .batch .btn{min-height:46px;padding:0;font-family:var(--font-display);font-size:24px;letter-spacing:0}
+  .wideonly{display:flex}
+  .statsv > .sgstack2{display:flex;flex-direction:column;gap:14px;min-width:0}
   .ccol .today{display:grid;grid-template-columns:auto minmax(0,1fr);gap:0;padding:12px 14px}
   .ccol .today .td-now{padding-right:16px}
   .ccol .today .td-hist{border-top:none;padding-top:0;border-left:2px dashed var(--line);padding-left:16px}
@@ -75,7 +85,7 @@ main{flex:1;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right
   .ccol .today .td-bars{height:92px}
   body.paned main{max-width:none;width:auto;margin:0 min(44%,560px) 0 0}
   body.paned #pane{display:block;position:fixed;top:0;right:0;bottom:calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 2px);width:min(44%,560px);overflow:auto;overscroll-behavior:contain;border-left:2px solid var(--line);background:var(--bg);z-index:15}
-  #pane .sheet{max-width:none;max-height:none;border-radius:0;box-shadow:none;background:transparent;padding:18px 18px 28px;animation:none}
+  #pane .sheet{max-width:none;max-height:none;overflow:visible;overscroll-behavior:auto;border-radius:0;box-shadow:none;background:transparent;padding:18px 18px 28px;animation:none}
   #pane .phbig{height:min(170px,26vh)}
   .paneempty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--muted);font-size:14px;text-align:center;padding:24px;opacity:.8}
   .dc.sel{outline:3px solid var(--berry);outline-offset:1px}
@@ -1425,6 +1435,7 @@ function viewCounter() {
         <span class="bigban" id="bigban" hidden></span>
       </span>
     </button>
+    <div class="batch" role="group" aria-label="Add several encounters at once">${[2, 3, 4, 5, 6, 7].map(n => `<button class="btn" data-batch="${n}">+${n}</button>`).join("")}</div>
     </div><div class="ccol">
     <div class="lasttap" id="lasttap">${lastTapHTML(e)}</div>
     <div class="next" id="next" style="background:${chanceBand(p).tint};color:${chanceBand(p).ink}">${nextHTML(e, nm, chanceBand(p))}</div>
@@ -2030,6 +2041,7 @@ function viewStats() {
     </div>
     </div>
     </div>
+    <div class="sgstack2">
     ${(() => { const T = timeTotals(list);
       if (!T.n) return `<div class="card muted" style="font-size:13px">Time stats appear once you've counted with the app for a while, or added times to hunts on their edit pages.</div>`;
       return `<div class="tiles">
@@ -2043,6 +2055,8 @@ function viewStats() {
           const tl = (label, x, note) => `<div class="tile c-time"><span class="label">${label}</span><span class="v">${x ? `${fmt(x.n)}<small> day${x.n > 1 ? "s" : ""}</small>` : "—"}</span><span class="d">${x ? esc(x.e.name) + note(x.e) : "no dates yet"}</span>${x && x.e.game ? `<span class="tgb">${gameBadge(x.e.game)}</span>` : ""}</div>`;
           return tl("Most days hunted", mostD, e => e.complete ? "" : " · still going") + tl("Longest in days", longD, () => ""); })()}
       </div>`; })()}
+    ${paceByMethod(list)}
+    </div>
     <div class="luck s2">
       ${(() => { const R5 = list.filter(e => e.complete && e.counted && e.odds > 1).sort((a, b) => ratio(a) - ratio(b)); return luckCard("Luckiest hunts", R5[0], R5.slice(1, 5)) + luckCard("Unluckiest hunts", R5[R5.length - 1], R5.slice(-5, -1).reverse()); })()}
     </div>
@@ -2216,6 +2230,18 @@ function luckCard(title, e, rest = []) {
     <span class="lchips"><span class="chip neutral num">P ${pct(pShiny(e))}</span>${(t => t.ms >= 60e3 ? `<span class="chip neutral num">⏱ ${hm(t.ms)}</span>` : "")(huntTime(e))}</span>${more}</div>`;
 }
 /** Pips (slow hunts) and stars (quick finds): how many hunts reached each tier. */
+/** Pace for each method, from time that was really measured: a small bar chart for the time column. */
+function paceByMethod(list) {
+  const G = new Map(); list.forEach(e => { const k = e.method || "—"; if (!G.has(k)) G.set(k, []); G.get(k).push(e); });
+  const R = [...G].map(([m, L]) => ({ m, p: realPace(L) })).filter(x => x.p && x.p.ms >= 30 * 60e3).sort((a, b) => b.p.ms - a.p.ms).slice(0, 6);
+  if (R.length < 2) return "";
+  const max = Math.max(...R.map(x => x.p.rate));
+  return `<div class="card wideonly" style="flex-direction:column;gap:10px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="label">Pace by method</span><span class="muted" style="font-size:12px">encounters per hour</span></div>
+    <div class="lcd bars pbm">${R.map(x => `<div class="pbr"><span class="pbn">${esc(x.m)}</span><span class="pbt"><i style="width:${(x.p.rate / max * 100).toFixed(1)}%"></i></span><b class="num">${fmt(x.p.rate)}</b><span class="pbh">${hm(x.p.ms)}</span></div>`).join("")}</div>
+    <span class="muted" style="font-size:12px">Your ${R.length} most-timed methods, longest first.</span>
+  </div>`;
+}
 function gemCard(list) {
   const C = list.filter(e => e.counted && e.odds > 1);
   const row = (kind, tiers) => tiers.map(([k, name, goal]) => {
@@ -3005,7 +3031,8 @@ function paneBody(html, onMount) {
   const p = $("#pane"); p.innerHTML = `<div class="sheet">${html}</div>`;
   const sh = $(".sheet", p);
   sh.querySelectorAll("[data-close]").forEach(b => b.onclick = () => { S.pane = null; renderPane(); });
-  snapPx(sh); if (onMount) onMount(sh); p.scrollTop = 0; markSel();
+  const key = S.pane ? S.pane.kind + ":" + S.pane.id : ""; if (p.dataset.key !== key) { p.scrollTop = 0; p.dataset.key = key; }
+  snapPx(sh); if (onMount) onMount(sh); markSel();
 }
 function renderPane() {
   const p = $("#pane"), on = paned();
@@ -3395,6 +3422,7 @@ function setCountSheet() {
 
 /* ===================== wiring ===================== */
 function wire(m) {
+  m.querySelectorAll("[data-batch]").forEach(b => b.onclick = () => tap(Number(b.dataset.batch)));
   const t = $("#tap", m);
   if (t) {
     // click (not pointerdown) so a scroll that starts on the button never counts

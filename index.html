@@ -46,12 +46,24 @@ h1,h2,h3{font-family:var(--font-display);font-weight:400;margin:0;text-wrap:bala
 main{flex:1;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:16px calc(var(--tabbar) + 24px + env(safe-area-inset-bottom, 0px));max-width:760px;width:100%;margin:0 auto}
 .view{display:flex;flex-direction:column;gap:14px}
 .cgrid,.ccol{display:contents}
+#pane{display:none}
 /* unfolded foldables, tablets in landscape, computers: counter on the left, everything else beside it */
 @media (min-width:680px) and (min-aspect-ratio:4/5){
   main:has(.cgrid){max-width:1180px}
   .cgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
   .ccol{display:flex;flex-direction:column;gap:14px;min-width:0}
   .cgrid > .ccol:first-child{position:sticky;top:12px}
+  body.paned main{max-width:none;width:auto;margin:0 min(44%,560px) 0 0}
+  body.paned #pane{display:block;position:fixed;top:0;right:0;bottom:calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 2px);width:min(44%,560px);overflow:auto;overscroll-behavior:contain;border-left:2px solid var(--line);background:var(--bg);z-index:15}
+  #pane .sheet{max-width:none;max-height:none;border-radius:0;box-shadow:none;background:transparent;padding:18px 18px 28px;animation:none}
+  .paneempty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--muted);font-size:14px;text-align:center;padding:24px;opacity:.8}
+  .dc.sel{outline:3px solid var(--berry);outline-offset:1px}
+  .item.sel{box-shadow:inset 4px 0 0 var(--berry);background:var(--surface-2)}
+  .dexrow.sel{box-shadow:inset 4px 0 0 var(--berry)}
+  main:has(.statsv){max-width:1180px}
+  .statsv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-flow:row dense;gap:14px;align-items:start}
+  .statsv > *{min-width:0}
+  .statsv > .viewhead,.statsv > .s2{grid-column:1/-1}
 }
 .viewhead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;position:relative;padding-bottom:14px}
 .viewhead::after{content:"";position:absolute;left:0;right:0;bottom:0;height:6px;border-radius:3px;
@@ -537,6 +549,7 @@ textarea.dump{width:100%;min-height:140px;font-family:var(--font-body);font-size
 
 <div id="app">
   <main id="main"></main>
+  <aside id="pane" hidden></aside>
   <nav class="tabs" aria-label="Sections">
     <a href="#counter" data-tab="counter">Counter</a>
     <a href="#hunts" data-tab="hunts">Hunts</a>
@@ -1257,6 +1270,7 @@ function render() {
   wire(m);
   snapPx(m);
   if (current === "counter") { fitCount(); paintLastTap(S.entries.get(S.meta.activeId), false); }
+  renderPane();
 }
 
 /* ---------- counter ---------- */
@@ -1849,13 +1863,14 @@ function wireCell(root) {
 function openDex(n) {
   const { map } = dexData("");
   const d = map.get(n); if (!d) return;
+  const show = usePane() ? (S.pane = { tab: current, kind: "dex", id: n }, paneBody) : openSheet;
   const set = formsFor(n);
   const finds = d.finds.slice().sort((a, b) => (a.foundAt || 0) - (b.foundAt || 0) || a.order - b.order);
   const countedEnc = d.finds.filter(e => e.counted).reduce((s, e) => s + e.encounters, 0);
   const summary = [d.finds.length ? `${d.finds.length} shin${d.finds.length > 1 ? "ies" : "y"}` : "", d.evos.length ? `${d.evos.length} by evolution` : "", countedEnc ? `${fmt(countedEnc)} encounters in counted hunts` : ""].filter(Boolean).join(" · ");
   const face = photoSrc(dexFace(d));
   const label = e => { const k = speciesOf(e).fkey; const x = set && set.find(y => y.k === k); return x && set ? `<span class="chip neutral">${esc(x.l)}</span> ` : ""; };
-  openSheet(`${face ? `<img class="phbig${pxc(dexFace(d))}" src="${esc(face)}" alt="Your shiny ${esc(DEX[n - 1])}">` : ""}<div><span class="dexno">${dexNo(n)}</span><h2>${esc(DEX[n - 1])}</h2></div>
+  show(`${face ? `<img class="phbig${pxc(dexFace(d))}" src="${esc(face)}" alt="Your shiny ${esc(DEX[n - 1])}">` : ""}<div><span class="dexno">${dexNo(n)}</span><h2>${esc(DEX[n - 1])}</h2></div>
     <div class="gbs">${[...d.games].map(gameBadge).join("")}</div>
     ${set ? `<div class="gbs">${set.map(x => `<span class="chip ${d.fk.has(x.k) ? "good" : "neutral"}">${d.fk.has(x.k) ? "✦ " : ""}${esc(x.l)}</span>`).join("")}</div>` : ""}
     <p class="muted" style="margin:0">${summary}</p>
@@ -1873,10 +1888,11 @@ function openDex(n) {
 /** A clean read-only summary of one hunt, with a button through to the edit page. */
 function huntSummary(id, backTo) {
   const e = S.entries.get(id); if (!e) return;
+  const show = usePane() ? (S.pane = { tab: current, kind: "hunt", id, back: backTo }, paneBody) : openSheet;
   const t = huntTime(e), rate = t.ms >= 60e3 && t.enc ? t.enc / (t.ms / 3600e3) : 0, face = photoSrc(e);
   const kv = (k, v) => v ? `<span><em>${k}</em><b>${v}</b></span>` : "";
   const day = k => k ? keyDate(k).toLocaleDateString("en-GB") : "";
-  openSheet(`${face ? `<img class="phbig${pxc(e)}" src="${esc(face)}" alt="${esc(e.name)}">` : thumb(e, "s56")}
+  show(`${face ? `<img class="phbig${pxc(e)}" src="${esc(face)}" alt="${esc(e.name)}">` : thumb(e, "s56")}
     <div><span class="dexno">${dexNo(speciesOf(e).dex)}</span><h2>${esc(e.name)}${pipsHTML(e, true)}</h2></div>
     <div class="gbs">${gameBadge(e.game)}${e.method ? ` <span class="chip neutral">${esc(e.method)}</span>` : ""}${e.complete && e.failed ? ' <span class="chip bad">failed</span>' : ""}${!e.counted ? ' <span class="chip neutral">not in stats</span>' : ""} ${phaseChip(e)}</div>
     <div class="hsum">
@@ -1945,7 +1961,7 @@ function viewStats() {
   const lucky = st.overall != null && st.overall <= 1;
   const tile = (cls, label, v, d) => `<div class="tile ${cls}"><span class="label">${label}</span><span class="v">${v}</span><span class="d">${d}</span></div>`;
   const maxR = Math.max(1.5, ...gr.filter(r => r.ratio != null).map(r => r.ratio)) * 1.05;
-  return `<section class="view">
+  return `<section class="view statsv">
     <div class="viewhead"><h1>Stats</h1><span class="label">${st.n} shinies · ${list.length} hunts</span></div>
     <div class="totals"><div class="lcd">
       <div class="row2"><span class="k"><span class="label">Total encounters</span><span>as counted</span></span><span class="v">${fmt(st.totalEnc)}</span></div>
@@ -1957,6 +1973,7 @@ function viewStats() {
       ${tile(st.n >= expected ? "c-under" : "c-over", "Shinies vs expected", `${st.n} <small>/ ${fmt(expected, 1)}</small>`, st.n >= expected ? `${fmt(st.n - expected, 1)} ahead of average` : `${fmt(expected - st.n, 1)} behind average`)}
       ${open.length ? tile(ratioBand(sunkR), "Unfinished (scaled)", fmt(sunk), `${fmt(sunkR, 2)}× of 1/8192 · ${open.length} hunt${open.length > 1 ? "s" : ""}`) : tile("", "Unfinished", "0", "No hunts in progress")}
     </div>
+    <div class="sgcol" style="display:flex;flex-direction:column;gap:14px">
     ${due ? `<div class="overdue ${ratioBand(ratio(due))}">
       <span style="display:flex;flex-direction:column;gap:3px;min-width:0"><span class="label" style="color:inherit">Most overdue</span><span class="nm" style="color:var(--ink)">${esc(due.name)}${pipsHTML(due)}</span>${due.game ? `<span class="tgb">${gameBadge(due.game)}</span>` : ""}</span>
       <span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><span class="v">${fmt(ratio(due), 2)}×</span><span style="font-size:11px">${pct(pShiny(due))} by now</span></span>
@@ -1964,6 +1981,7 @@ function viewStats() {
     <div class="key" aria-label="Colour key">
       <span><span><i style="background:var(--teal)"></i>Under odds</span><span><i style="background:var(--berry)"></i>Over odds</span></span>
       <span><span><i style="background:var(--green)"></i>&lt;0.5×</span><span><i style="background:var(--indigo)"></i>&lt;1×</span><span><i style="background:var(--amber)"></i>&lt;2×</span><span><i style="background:var(--red)"></i>2×+</span><span class="muted">In-progress hunts</span></span>
+    </div>
     </div>
     ${(() => { const T = timeTotals(list);
       if (!T.n) return `<div class="card muted" style="font-size:13px">Time stats appear once you've counted with the app for a while, or added times to hunts on their edit pages.</div>`;
@@ -1978,12 +1996,12 @@ function viewStats() {
           const tl = (label, x, note) => `<div class="tile c-time"><span class="label">${label}</span><span class="v">${x ? `${fmt(x.n)}<small> day${x.n > 1 ? "s" : ""}</small>` : "—"}</span><span class="d">${x ? esc(x.e.name) + note(x.e) : "no dates yet"}</span>${x && x.e.game ? `<span class="tgb">${gameBadge(x.e.game)}</span>` : ""}</div>`;
           return tl("Most days hunted", mostD, e => e.complete ? "" : " · still going") + tl("Longest in days", longD, () => ""); })()}
       </div>`; })()}
-    <div class="luck">
+    <div class="luck s2">
       ${(() => { const R5 = list.filter(e => e.complete && e.counted && e.odds > 1).sort((a, b) => ratio(a) - ratio(b)); return luckCard("Luckiest hunts", R5[0], R5.slice(1, 5)) + luckCard("Unluckiest hunts", R5[R5.length - 1], R5.slice(-5, -1).reverse()); })()}
     </div>
     ${gemCard(list)}
-    ${rankBlock("Game rankings", gr, r => gameBadge(r.game === "—" ? "" : r.game) || "—", maxR, true)}
-    ${rankBlock("Method rankings", gameRows(list, "method"), r => `<span class="chip neutral" style="background:var(--lcd-panel);color:var(--lcd-ink)">${esc(r.game)}</span>`, Math.max(1.5, ...gameRows(list, "method").filter(r => r.ratio != null).map(r => r.ratio)) * 1.05, false)}
+    <div class="s2">${rankBlock("Game rankings", gr, r => gameBadge(r.game === "—" ? "" : r.game) || "—", maxR, true)}</div>
+    <div class="s2">${rankBlock("Method rankings", gameRows(list, "method"), r => `<span class="chip neutral" style="background:var(--lcd-panel);color:var(--lcd-ink)">${esc(r.game)}</span>`, Math.max(1.5, ...gameRows(list, "method").filter(r => r.ratio != null).map(r => r.ratio)) * 1.05, false)}</div>
     <div class="card chart" style="display:flex;flex-direction:column;gap:10px">
       <h2 style="font-size:30px">Shiny distribution</h2>
       <p class="muted" style="margin:0;font-size:13px">Each found shiny, grouped by its odds ratio.</p>
@@ -1992,7 +2010,7 @@ function viewStats() {
       <div class="legend"><span><i style="background:var(--accent)"></i>Your shinies</span><span><i style="background:var(--ink);height:2px"></i>Expected at average luck</span></div>
     </div>
     ${luckTimeline(list, st)}
-    ${calendarCard()}
+    <div class="s2">${calendarCard()}</div>
     ${wrapCard()}
   </section>`;
 }
@@ -2932,6 +2950,30 @@ function openSheet(html, onMount, cls = "") {
   sh.setAttribute("tabindex", "-1"); sh.style.outline = "none"; sh.focus({ preventScroll: true });
 }
 function closeSheet() { $("#layer").innerHTML = ""; }
+/* ---------- side pane: on wide screens the Dex and Hunts open their pages beside the list, like a real Pokédex ---------- */
+const WIDE_Q = matchMedia("(min-width:680px) and (min-aspect-ratio:4/5)");
+const paned = () => WIDE_Q.matches && (current === "dex" || current === "hunts");
+const usePane = () => paned() && !$("#layer").innerHTML;   // a pop-up already open keeps things in pop-ups
+function paneBody(html, onMount) {
+  const p = $("#pane"); p.innerHTML = `<div class="sheet">${html}</div>`;
+  const sh = $(".sheet", p);
+  sh.querySelectorAll("[data-close]").forEach(b => b.onclick = () => { S.pane = null; renderPane(); });
+  snapPx(sh); if (onMount) onMount(sh); p.scrollTop = 0; markSel();
+}
+function renderPane() {
+  const p = $("#pane"), on = paned();
+  document.body.classList.toggle("paned", on); p.hidden = !on;
+  if (!on) { p.innerHTML = ""; return; }
+  if (S.pane && S.pane.tab === current && (S.pane.kind === "dex" || S.entries.get(S.pane.id))) {
+    const P = S.pane; if (P.kind === "dex") openDex(P.id); else huntSummary(P.id, P.back);
+  } else { S.pane = null; p.innerHTML = `<div class="paneempty"><span>${PIXEL_SPARK(48)}</span>${current === "dex" ? "Tap a Pokémon to open its page here." : "Tap a hunt to see its summary here."}</div>`; markSel(); }
+}
+function markSel() {
+  document.querySelectorAll("#main .sel").forEach(x => x.classList.remove("sel"));
+  const P = S.pane; if (!P || P.tab !== current) return;
+  document.querySelectorAll(P.kind === "dex" ? `#main [data-cell="${P.id}"], #main .dexrow[data-dex="${P.id}"]` : `#main .item[data-open="${P.id}"]`).forEach(x => x.classList.add("sel"));
+}
+WIDE_Q.addEventListener("change", () => render());
 document.addEventListener("keydown", ev => {
   if (ev.key === "Escape") closeSheet();
   if (current === "counter" && !$("#layer").innerHTML && (ev.code === "Space" || ev.key === "Enter") && !/INPUT|TEXTAREA|SELECT|BUTTON/.test(document.activeElement.tagName)) { ev.preventDefault(); const e = S.entries.get(S.meta.activeId); if (e) tap(e.step); }
@@ -3339,7 +3381,7 @@ function wire(m) {
   }));
   m.querySelectorAll("[data-filter]").forEach(b => b.onclick = () => { S.huntFilter = b.dataset.filter; render(); });
   const dord = $("[data-act=doneorder]", m); if (dord) dord.onclick = () => { S.doneOldest = !S.doneOldest; try { localStorage.setItem("ss-doneOldest", S.doneOldest ? "1" : ""); } catch (err) {} render(); };
-  m.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openHunt(b.dataset.open));
+  m.querySelectorAll("[data-open]").forEach(b => b.onclick = () => current === "hunts" && usePane() ? huntSummary(b.dataset.open) : openHunt(b.dataset.open));
   m.querySelectorAll(".dexrow[data-dex]").forEach(b => b.onclick = () => openDex(Number(b.dataset.dex)));
   if (current === "dex") wireCell(m);
   m.querySelectorAll("[data-dexmode]").forEach(b => b.onclick = () => { S.dexMode = b.dataset.dexmode; render(); });

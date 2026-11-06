@@ -61,12 +61,13 @@ main{flex:1;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right
 .td-b.now span{background:var(--amber)}.td-b.on i{color:var(--lcd-ink);text-decoration:underline}.td-b.on span{box-shadow:0 0 0 2px var(--lcd-ink)}
 #pane{display:none}
 .batch,.wideonly{display:none}
+.narrowonly{display:flex}
 .rg{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px 6px}
 .rgc{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0;border:none;background:none;padding:4px 0;border-radius:10px;cursor:pointer;font:inherit;color:inherit}
 .rgc:active{background:var(--surface-2)}
 .rgn{font-weight:600;font-size:12px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rgp{display:flex;align-items:center;justify-content:center;min-height:14px}.rgp svg{width:13px;height:13px}
-.rgc .gb{font-size:10px}
+.rgc .gb{font-size:10px;max-width:100%}.narrowonly .rgc .gb{font-size:9px}
 .pbm{display:flex;flex-direction:column;gap:8px;padding:12px 14px}
 .pbr{display:grid;grid-template-columns:minmax(0,7.5em) minmax(0,1fr) 3.4em 4.6em;gap:10px;align-items:center;font-size:13px;color:var(--lcd-ink)}
 .pbn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -81,6 +82,7 @@ main{flex:1;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right
   .batch{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
   .batch .btn{min-height:46px;padding:0;font-family:var(--font-display);font-size:24px;letter-spacing:0}
   .wideonly{display:flex}
+  .narrowonly{display:none}
   .statsv > .sgstack2{display:flex;flex-direction:column;gap:14px;min-width:0}
   .ccol .today{display:grid;grid-template-columns:auto minmax(0,1fr);gap:0;padding:12px 14px}
   .ccol .today .td-now{padding-right:16px}
@@ -2041,6 +2043,7 @@ function viewStats() {
       <span style="display:flex;flex-direction:column;gap:3px;min-width:0"><span class="label" style="color:inherit">Most overdue</span><span class="nm" style="color:var(--ink)">${esc(due.name)}${liveStars(due)}${pipsOnly(due)}</span>${due.game ? `<span class="tgb">${gameBadge(due.game)}</span>` : ""}</span>
       <span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><span class="v">${fmt(ratio(due), 2)}×</span><span style="font-size:11px">${pct(pShiny(due))} by now</span></span>
     </div>` : ""}
+    ${inProgress(S.ipAll, "narrowonly")}
     <div class="key" aria-label="Colour key">
       <span><span><i style="background:var(--teal)"></i>Under odds</span><span><i style="background:var(--berry)"></i>Over odds</span></span>
       <span><span><i style="background:var(--green)"></i>&lt;0.5×</span><span><i style="background:var(--indigo)"></i>&lt;1×</span><span><i style="background:var(--amber)"></i>&lt;2×</span><span><i style="background:var(--red)"></i>2×+</span><span class="muted">In-progress hunts</span></span>
@@ -2237,14 +2240,14 @@ function luckCard(title, e, rest = []) {
 }
 /** Pips (slow hunts) and stars (quick finds): how many hunts reached each tier. */
 /** Every open hunt as a small ring (like the counter's), most overdue first. Tap one to count on it. */
-function inProgress(all) {
+function inProgress(all, where = "wideonly") {
   const H = live().filter(e => isOpen(e) && e.counted && e.odds > 1 && !e.phaseOf).map(e => ({ e, r: ratio(e) })).sort((a, b) => b.r - a.r);
   if (!H.length) return "";
   const band = r => r < 0.5 ? "var(--green)" : r < 1 ? "var(--indigo)" : r < 2 ? "var(--amber)" : "var(--berry)";
   const ring = r => { const C = 2 * Math.PI * 22, laps = Math.floor(r), f = r - laps;
     return `<svg viewBox="0 0 56 56" width="56" height="56" aria-hidden="true"><circle cx="28" cy="28" r="22" fill="none" stroke="rgb(0 0 0 / .1)" stroke-width="6"/>${laps ? `<circle cx="28" cy="28" r="22" fill="none" stroke="${band(laps)}" stroke-opacity=".4" stroke-width="6"/>` : ""}<circle cx="28" cy="28" r="22" fill="none" stroke="${band(r)}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${(f * C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 28 28)"/><text x="28" y="33.5" text-anchor="middle" font-size="16" font-family="VT323, monospace" fill="#26331c">${fmt(r, r < 1 ? 2 : 1)}×</text></svg>`; };
   const shown = all ? H : H.slice(0, 5);
-  return `<div class="card wideonly ipcard" style="flex-direction:column;gap:10px">
+  return `<div class="card ${where} ipcard" style="flex-direction:column;gap:10px">
     <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="label">In progress</span><span class="muted" style="font-size:12px">${H.length} going · tap to count</span></div>
     <div class="rg">${shown.map(({ e, r }) => `<button class="rgc" data-goto="${esc(e.id)}" aria-label="${esc(e.name)}, ${fmt(r, 2)} times the odds">${ring(r)}<span class="rgn">${esc(e.name)}</span><span class="rgp">${liveStars(e)}${pipsOnly(e)}</span>${gameBadge(e.game)}</button>`).join("")}</div>
     ${H.length > 5 ? `<button class="btn ghost" data-act="ipall" style="align-self:flex-start;min-height:32px;font-size:12px">${all ? "Show fewer" : `Show all ${H.length}`}</button>` : ""}
@@ -3523,7 +3526,7 @@ function wire(m) {
   m.querySelectorAll("[data-stamp]").forEach(b => b.onclick = () => { S.passStamp = Number(b.dataset.stamp); render(); });
   m.querySelectorAll("[data-wraplist]").forEach(b => b.onclick = () => wrapList(b.dataset.wraplist));
   m.querySelectorAll("[data-goto]").forEach(b => b.onclick = async () => { const e = S.entries.get(b.dataset.goto); if (!e) return; S.meta.activeId = e.id; e.usedAt = Date.now(); await commit([e]); await saveMeta(); location.hash = "counter"; });
-  const ipa = $("[data-act=ipall]", m); if (ipa) ipa.onclick = () => { S.ipAll = !S.ipAll; render(); };
+  m.querySelectorAll("[data-act=ipall]").forEach(b => b.onclick = () => { S.ipAll = !S.ipAll; render(); });
   m.querySelectorAll("[data-wrapyear]").forEach(b => b.onclick = () => openWrapYear(b.dataset.wrapyear));
   m.querySelectorAll("[data-wrapmonth]").forEach(b => b.onclick = () => openWrapMonth(b.dataset.wrapmonth));
   m.querySelectorAll("[data-gen]").forEach(b => b.onclick = () => {

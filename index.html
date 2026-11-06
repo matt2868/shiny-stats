@@ -46,7 +46,9 @@ h1,h2,h3{font-family:var(--font-display);font-weight:400;margin:0;text-wrap:bala
 main{flex:1;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:16px calc(var(--tabbar) + 24px + env(safe-area-inset-bottom, 0px));max-width:760px;width:100%;margin:0 auto}
 .view{display:flex;flex-direction:column;gap:14px}
 .cgrid,.ccol{display:contents}
-.today{display:flex;flex-direction:column;gap:10px}
+.today{display:flex;flex-direction:column;gap:12px}
+.td-side{display:flex;flex-direction:column;gap:8px;min-width:0}
+.td-hist{border-top:2px dashed var(--line);padding-top:12px}
 .td-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .td-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .td-stats span{display:flex;flex-direction:column;gap:1px;min-width:0}
@@ -64,9 +66,10 @@ main{flex:1;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right
   .cgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
   .ccol{display:flex;flex-direction:column;gap:14px;min-width:0}
   .cgrid > .ccol:first-child{position:sticky;top:12px}
-  .ccol .today{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 14px;padding:12px 14px}
-  .ccol .today .td-head{grid-column:1/-1}
-  .ccol .today .td-stats{grid-template-columns:1fr;gap:6px;align-content:center}
+  .ccol .today{display:grid;grid-template-columns:auto minmax(0,1fr);gap:0;padding:12px 14px}
+  .ccol .today .td-now{padding-right:16px}
+  .ccol .today .td-hist{border-top:none;padding-top:0;border-left:2px dashed var(--line);padding-left:16px}
+  .ccol .today .td-stats{grid-template-columns:1fr;gap:6px;align-content:center;flex:1}
   .ccol .today .td-stats span{flex-direction:row;align-items:baseline;gap:6px}
   .ccol .today .td-stats b{font-size:22px}
   .ccol .today .td-bars{height:92px}
@@ -1610,14 +1613,15 @@ function todayHTML(e, pick) {
   const diff = pace && avg ? Math.round((pace / avg - 1) * 100) : null;
   const week = days.slice(7).reduce((s, k) => s + at(k)[0], 0);
   const label = sel === today ? "Today" : keyDate(sel).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
-  return `<div class="td-head"><span class="label">${label}</span><span class="muted" style="font-size:12px">${fmt(week)} in the last 7 days</span></div>
+  return `<div class="td-side td-now"><div class="td-head"><span class="label">${label}</span>${sel === today ? "" : `<span class="muted" style="font-size:11px">tap today to go back</span>`}</div>
     <div class="td-stats">
       <span><b class="num">${fmt(n)}</b><em>encounters</em></span>
       <span><b class="num">${ms >= 60e3 ? hm(ms) : "—"}</b><em>hunting</em></span>
       <span><b class="num">${pace ? fmt(pace) + "<small>/h</small>" : "—"}</b><em>${diff == null ? "pace" : `${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff)}% vs avg`}</em></span>
-    </div>
+    </div></div>
+    <div class="td-side td-hist"><div class="td-head"><span class="label">Last 14 days</span><span class="muted" style="font-size:11px">${fmt(week)} this week</span></div>
     <div class="td-bars" role="group" aria-label="Encounters each day, last 14 days">${days.map(k => { const v = at(k)[0], h = v ? Math.max(6, Math.round(v / max * 100)) : 0;
-      return `<button class="td-b${k === sel ? " on" : ""}${k === today ? " now" : ""}" data-tday="${k}" aria-label="${keyDate(k).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}: ${fmt(v)} encounters"><span style="height:${h}%"></span><i>${"MTWTFSS"[(keyDate(k).getDay() + 6) % 7]}</i></button>`; }).join("")}</div>`;
+      return `<button class="td-b${k === sel ? " on" : ""}${k === today ? " now" : ""}" data-tday="${k}" aria-label="${keyDate(k).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}: ${fmt(v)} encounters"><span style="height:${h}%"></span><i>${"MTWTFSS"[(keyDate(k).getDay() + 6) % 7]}</i></button>`; }).join("")}</div></div>`;
 }
 function counterKV(e, r, rate) {
   return `<div><span class="label">Odds ratio</span><span class="v">${fmt(r, 2)}×</span></div>

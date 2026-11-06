@@ -46,6 +46,17 @@ h1,h2,h3{font-family:var(--font-display);font-weight:400;margin:0;text-wrap:bala
 main{flex:1;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:16px calc(var(--tabbar) + 24px + env(safe-area-inset-bottom, 0px));max-width:760px;width:100%;margin:0 auto}
 .view{display:flex;flex-direction:column;gap:14px}
 .cgrid,.ccol{display:contents}
+.today{display:flex;flex-direction:column;gap:10px}
+.td-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.td-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.td-stats span{display:flex;flex-direction:column;gap:1px;min-width:0}
+.td-stats b{font-family:var(--font-display);font-weight:400;font-size:26px;line-height:1;white-space:nowrap}.td-stats b small{font-size:14px}
+.td-stats em{font-style:normal;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.td-bars{display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:4px;height:96px;background:var(--lcd);background-image:var(--scan);border-radius:10px;padding:8px 8px 4px}
+.td-b{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:3px;border:none;background:none;padding:0;min-width:0;cursor:pointer;height:100%}
+.td-b span{width:100%;max-width:18px;background:var(--lcd-mid);border-radius:2px 2px 0 0;min-height:0}
+.td-b i{font-style:normal;font-family:var(--font-label);font-size:8px;color:var(--lcd-mid);line-height:1}
+.td-b.now span{background:var(--amber)}.td-b.on i{color:var(--lcd-ink);text-decoration:underline}.td-b.on span{box-shadow:0 0 0 2px var(--lcd-ink)}
 #pane{display:none}
 /* unfolded foldables, tablets in landscape, computers: counter on the left, everything else beside it */
 @media (min-width:680px) and (min-aspect-ratio:4/5){
@@ -53,6 +64,12 @@ main{flex:1;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right
   .cgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
   .ccol{display:flex;flex-direction:column;gap:14px;min-width:0}
   .cgrid > .ccol:first-child{position:sticky;top:12px}
+  .ccol .today{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 14px;padding:12px 14px}
+  .ccol .today .td-head{grid-column:1/-1}
+  .ccol .today .td-stats{grid-template-columns:1fr;gap:6px;align-content:center}
+  .ccol .today .td-stats span{flex-direction:row;align-items:baseline;gap:6px}
+  .ccol .today .td-stats b{font-size:22px}
+  .ccol .today .td-bars{height:92px}
   body.paned main{max-width:none;width:auto;margin:0 min(44%,560px) 0 0}
   body.paned #pane{display:block;position:fixed;top:0;right:0;bottom:calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 2px);width:min(44%,560px);overflow:auto;overscroll-behavior:contain;border-left:2px solid var(--line);background:var(--bg);z-index:15}
   #pane .sheet{max-width:none;max-height:none;border-radius:0;box-shadow:none;background:transparent;padding:18px 18px 28px;animation:none}
@@ -1271,6 +1288,7 @@ function render() {
   snapPx(m);
   if (current === "counter") { fitCount(); paintLastTap(S.entries.get(S.meta.activeId), false); }
   renderPane();
+  const td = $("#today"); if (td) td.onclick = ev => { const b = ev.target.closest("[data-tday]"); if (!b) return; const e = S.entries.get(S.meta.activeId); if (e) td.innerHTML = todayHTML(e, b.dataset.tday === dayKey(Date.now()) ? null : b.dataset.tday); };
 }
 
 /* ---------- counter ---------- */
@@ -1413,6 +1431,7 @@ function viewCounter() {
     ${e.alsoCount ? `<div class="muted" id="sidecount" style="font-size:13px;text-align:center;margin-top:-4px">${sideHTML(e)}</div>` : ""}
     <button class="btn shiny" data-act="found" style="min-height:56px;font-size:16px">✦ Shiny found</button>
     <div class="card kv" id="kv">${counterKV(e, r, rate)}</div>
+    <div class="card today" id="today">${todayHTML(e)}</div>
     </div></div>
   </section>`;
 }
@@ -1582,6 +1601,24 @@ setInterval(() => {
   document.querySelectorAll("#lasttap [data-ago]").forEach(x => { x.textContent = ago(Date.now() - Number(x.dataset.ago)); });
 }, 1000);
 try { document.fonts && document.fonts.ready.then(fitCount); } catch (err) {}
+/** Today's session beside the last 14 days of this hunt. Tap a bar to see that day. */
+function todayHTML(e, pick) {
+  const today = dayKey(Date.now()), days = []; for (let i = 13; i >= 0; i--) days.push(addDays(today, -i));
+  const sel = pick && days.includes(pick) ? pick : today, dl = e.daily || {}, at = k => dl[k] || [0, 0];
+  const [n, ms] = at(sel), max = Math.max(1, ...days.map(k => at(k)[0]));
+  const ht = huntTime(e), avg = ht.ms >= 60e3 && ht.enc ? ht.enc / (ht.ms / 3600e3) : 0, pace = ms >= 60e3 ? n / (ms / 3600e3) : 0;
+  const diff = pace && avg ? Math.round((pace / avg - 1) * 100) : null;
+  const week = days.slice(7).reduce((s, k) => s + at(k)[0], 0);
+  const label = sel === today ? "Today" : keyDate(sel).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  return `<div class="td-head"><span class="label">${label}</span><span class="muted" style="font-size:12px">${fmt(week)} in the last 7 days</span></div>
+    <div class="td-stats">
+      <span><b class="num">${fmt(n)}</b><em>encounters</em></span>
+      <span><b class="num">${ms >= 60e3 ? hm(ms) : "—"}</b><em>hunting</em></span>
+      <span><b class="num">${pace ? fmt(pace) + "<small>/h</small>" : "—"}</b><em>${diff == null ? "pace" : `${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff)}% vs avg`}</em></span>
+    </div>
+    <div class="td-bars" role="group" aria-label="Encounters each day, last 14 days">${days.map(k => { const v = at(k)[0], h = v ? Math.max(6, Math.round(v / max * 100)) : 0;
+      return `<button class="td-b${k === sel ? " on" : ""}${k === today ? " now" : ""}" data-tday="${k}" aria-label="${keyDate(k).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}: ${fmt(v)} encounters"><span style="height:${h}%"></span><i>${"MTWTFSS"[(keyDate(k).getDay() + 6) % 7]}</i></button>`; }).join("")}</div>`;
+}
 function counterKV(e, r, rate) {
   return `<div><span class="label">Odds ratio</span><span class="v">${fmt(r, 2)}×</span></div>
     <div><span class="label">Scaled</span><span class="v">${fmt(scaled(e))}</span></div>
@@ -1648,6 +1685,7 @@ async function tap(delta) {
   const arc = $("#ringarc"); if (arc) { arc.setAttribute("stroke-dasharray", `${(L.frac * RING_C).toFixed(1)} ${RING_C.toFixed(1)}`); arc.setAttribute("stroke", L.lap ? lapArc(L.lap) : arcOf(e.encounters, e.odds)); }
   const nx = $("#next"); if (nx) paintNext(nx, e);
   const tg = $("#tickg"); if (tg) tg.innerHTML = tickSVG(nextTick(e));
+  const td = $("#today"); if (td) td.innerHTML = todayHTML(e);
   const kv = $("#kv"); if (kv) { kv.innerHTML = counterKV(e, ratio(e), e.activeMs > 60e3 ? e.timedEnc / (e.activeMs / 3600e3) : 0); const pb = kv.querySelector("[data-act=pace]"); if (pb) pb.onclick = paceSheet; }
   paintLastTap(e, true);
   const big = delta > 0 ? milestonesFor(e.odds).filter(m => m.k >= 1 && beforeN < m.n && e.encounters >= m.n).pop() : null;

@@ -45,6 +45,14 @@ h1,h2,h3{font-family:var(--font-display);font-weight:400;margin:0;text-wrap:bala
 #app{min-height:100%;display:flex;flex-direction:column}
 main{flex:1;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:16px calc(var(--tabbar) + 24px + env(safe-area-inset-bottom, 0px));max-width:760px;width:100%;margin:0 auto}
 .view{display:flex;flex-direction:column;gap:14px}
+.cgrid,.ccol{display:contents}
+/* unfolded foldables, tablets in landscape, computers: counter on the left, everything else beside it */
+@media (min-width:680px) and (min-aspect-ratio:4/5){
+  main:has(.cgrid){max-width:1180px}
+  .cgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+  .ccol{display:flex;flex-direction:column;gap:14px;min-width:0}
+  .cgrid > .ccol:first-child{position:sticky;top:12px}
+}
 .viewhead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;position:relative;padding-bottom:14px}
 .viewhead::after{content:"";position:absolute;left:0;right:0;bottom:0;height:6px;border-radius:3px;
   background:linear-gradient(90deg,var(--berry) 0 25%,var(--amber) 25% 50%,var(--teal) 50% 75%,var(--indigo) 75% 100%)}
@@ -1363,6 +1371,7 @@ function viewCounter() {
   return `<section class="view">
     ${head}
     ${!idb ? `<div class="callout">Device storage isn't available right now, so new counts are only in the backup copy. Close the app fully and reopen it.</div>` : ""}
+    <div class="cgrid"><div class="ccol">
     <div class="hunt-pick">
       <button class="pickarea" data-act="pick" aria-label="Change hunt">
         <span class="grow" style="min-width:0"><span class="t" style="display:block">${esc(e.name)}${liveStars(e)}${pipsOnly(e)}</span>
@@ -1379,6 +1388,7 @@ function viewCounter() {
         <span class="bigban" id="bigban" hidden></span>
       </span>
     </button>
+    </div><div class="ccol">
     <div class="lasttap" id="lasttap">${lastTapHTML(e)}</div>
     <div class="next" id="next" style="background:${chanceBand(p).tint};color:${chanceBand(p).ink}">${nextHTML(e, nm, chanceBand(p))}</div>
     <div class="ctrls">
@@ -1389,6 +1399,7 @@ function viewCounter() {
     ${e.alsoCount ? `<div class="muted" id="sidecount" style="font-size:13px;text-align:center;margin-top:-4px">${sideHTML(e)}</div>` : ""}
     <button class="btn shiny" data-act="found" style="min-height:56px;font-size:16px">✦ Shiny found</button>
     <div class="card kv" id="kv">${counterKV(e, r, rate)}</div>
+    </div></div>
   </section>`;
 }
 function nextHTML(e, nm, b) {

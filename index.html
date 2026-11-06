@@ -45,12 +45,12 @@ h1,h2,h3{font-family:var(--font-display);font-weight:400;margin:0;text-wrap:bala
 #app{min-height:100%;display:flex;flex-direction:column}
 main{flex:1;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:16px calc(var(--tabbar) + 24px + env(safe-area-inset-bottom, 0px));max-width:760px;width:100%;margin:0 auto}
 .view{display:flex;flex-direction:column;gap:14px}
-.cgrid,.ccol{display:contents}
+.cgrid,.ccol,.sgstack{display:contents}
 .today{display:flex;flex-direction:column;gap:12px}
 .td-side{display:flex;flex-direction:column;gap:8px;min-width:0}
 .td-hist{border-top:2px dashed var(--line);padding-top:12px}
 .td-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-.td-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.td-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 .td-stats span{display:flex;flex-direction:column;gap:1px;min-width:0}
 .td-stats b{font-family:var(--font-display);font-weight:400;font-size:26px;line-height:1;white-space:nowrap}.td-stats b small{font-size:14px}
 .td-stats em{font-style:normal;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -69,13 +69,14 @@ main{flex:1;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right
   .ccol .today{display:grid;grid-template-columns:auto minmax(0,1fr);gap:0;padding:12px 14px}
   .ccol .today .td-now{padding-right:16px}
   .ccol .today .td-hist{border-top:none;padding-top:0;border-left:2px dashed var(--line);padding-left:16px}
-  .ccol .today .td-stats{grid-template-columns:1fr;gap:6px;align-content:center;flex:1}
+  .ccol .today .td-stats{grid-template-columns:1fr;gap:3px;align-content:center;flex:1}
   .ccol .today .td-stats span{flex-direction:row;align-items:baseline;gap:6px}
-  .ccol .today .td-stats b{font-size:22px}
+  .ccol .today .td-stats b{font-size:20px}
   .ccol .today .td-bars{height:92px}
   body.paned main{max-width:none;width:auto;margin:0 min(44%,560px) 0 0}
   body.paned #pane{display:block;position:fixed;top:0;right:0;bottom:calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 2px);width:min(44%,560px);overflow:auto;overscroll-behavior:contain;border-left:2px solid var(--line);background:var(--bg);z-index:15}
   #pane .sheet{max-width:none;max-height:none;border-radius:0;box-shadow:none;background:transparent;padding:18px 18px 28px;animation:none}
+  #pane .phbig{height:min(170px,26vh)}
   .paneempty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--muted);font-size:14px;text-align:center;padding:24px;opacity:.8}
   .dc.sel{outline:3px solid var(--berry);outline-offset:1px}
   .item.sel{box-shadow:inset 4px 0 0 var(--berry);background:var(--surface-2)}
@@ -83,6 +84,7 @@ main{flex:1;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right
   main:has(.statsv){max-width:1180px}
   .statsv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-flow:row dense;gap:14px;align-items:start}
   .statsv > *{min-width:0}
+  .statsv > .sgstack{display:flex;flex-direction:column;gap:14px;min-width:0}
   .statsv > .viewhead,.statsv > .s2{grid-column:1/-1}
 }
 .viewhead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;position:relative;padding-bottom:14px}
@@ -1616,6 +1618,7 @@ function todayHTML(e, pick) {
   return `<div class="td-side td-now"><div class="td-head"><span class="label">${label}</span>${sel === today ? "" : `<span class="muted" style="font-size:11px">tap today to go back</span>`}</div>
     <div class="td-stats">
       <span><b class="num">${fmt(n)}</b><em>encounters</em></span>
+      <span><b class="num">${e.odds > 1 && n ? pct(1 - Math.pow(1 - 1 / e.odds, n)) : "—"}</b><em>shiny chance</em></span>
       <span><b class="num">${ms >= 60e3 ? hm(ms) : "—"}</b><em>hunting</em></span>
       <span><b class="num">${pace ? fmt(pace) + "<small>/h</small>" : "—"}</b><em>${diff == null ? "pace" : `${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff)}% vs avg`}</em></span>
     </div></div>
@@ -2005,6 +2008,7 @@ function viewStats() {
   const maxR = Math.max(1.5, ...gr.filter(r => r.ratio != null).map(r => r.ratio)) * 1.05;
   return `<section class="view statsv">
     <div class="viewhead"><h1>Stats</h1><span class="label">${st.n} shinies · ${list.length} hunts</span></div>
+    <div class="sgstack">
     <div class="totals"><div class="lcd">
       <div class="row2"><span class="k"><span class="label">Total encounters</span><span>as counted</span></span><span class="v">${fmt(st.totalEnc)}</span></div>
       <div class="row2"><span class="k"><span class="label">Total scaled</span><span>at 1/8192</span></span><span class="v">${fmt(st.totalScaled)}</span></div>
@@ -2023,6 +2027,7 @@ function viewStats() {
     <div class="key" aria-label="Colour key">
       <span><span><i style="background:var(--teal)"></i>Under odds</span><span><i style="background:var(--berry)"></i>Over odds</span></span>
       <span><span><i style="background:var(--green)"></i>&lt;0.5×</span><span><i style="background:var(--indigo)"></i>&lt;1×</span><span><i style="background:var(--amber)"></i>&lt;2×</span><span><i style="background:var(--red)"></i>2×+</span><span class="muted">In-progress hunts</span></span>
+    </div>
     </div>
     </div>
     ${(() => { const T = timeTotals(list);

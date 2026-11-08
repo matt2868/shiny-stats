@@ -54,10 +54,14 @@ main{flex:1;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right
 .td-stats span{display:flex;flex-direction:column;gap:1px;min-width:0}
 .td-stats b{font-family:var(--font-display);font-weight:400;font-size:26px;line-height:1;white-space:nowrap}.td-stats b small{font-size:14px}
 .td-stats em{font-style:normal;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.td-bars{display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:4px;height:96px;background:var(--lcd);background-image:var(--scan);border-radius:10px;padding:8px 8px 4px}
-.td-b{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:3px;border:none;background:none;padding:0;min-width:0;cursor:pointer;height:100%}
-.td-b span{width:100%;max-width:18px;background:var(--lcd-mid);border-radius:2px 2px 0 0;min-height:0}
-.td-b i{font-style:normal;font-family:var(--font-label);font-size:8px;color:var(--lcd-mid);line-height:1}
+.td-bars{position:relative;display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:4px;height:104px;background:var(--lcd);background-image:var(--scan);border-radius:10px;padding:10px 8px 4px 34px}
+.td-grid{position:absolute;left:34px;right:8px;top:10px;bottom:16px;pointer-events:none}
+.td-grid span{position:absolute;left:0;right:0;border-top:1.5px dotted rgb(38 51 28 / .35)}
+.td-grid span:last-child{border-top-style:solid;border-top-color:rgb(38 51 28 / .45)}
+.td-grid em{position:absolute;right:calc(100% + 5px);top:-6px;font-style:normal;font-family:var(--font-label);font-size:8px;color:var(--lcd-mid);white-space:nowrap}
+.td-b{position:relative;display:block;border:none;background:none;padding:0;min-width:0;cursor:pointer;height:100%}
+.td-b span{position:absolute;left:50%;transform:translateX(-50%);bottom:12px;width:100%;max-width:18px;background:var(--lcd-mid);border-radius:2px 2px 0 0}
+.td-b i{position:absolute;left:0;right:0;bottom:0;text-align:center;font-style:normal;font-family:var(--font-label);font-size:8px;color:var(--lcd-mid);line-height:10px}
 .td-b.now span{background:var(--amber)}.td-b.on i{color:var(--lcd-ink);text-decoration:underline}.td-b.on span{box-shadow:0 0 0 2px var(--lcd-ink)}
 #pane{display:none}
 .batch,.wideonly{display:none}
@@ -1474,14 +1478,14 @@ function fitCount() {
   c.style.fontSize = Math.max(40, Math.min(104, 104 * avail / w)) + "px";
 }
 window.addEventListener("resize", () => { fitCount(); snapPx(document); });
-/** Gap beyond which a pause counts as a break: twice your typical gap (median of the last 20), between 3 s and 1 hour. Before your first gap, 3 min.
+/** Gap beyond which a pause counts as a break: three times your typical gap (median of the last 20), between 3 s and 1 hour. Before your first gap, 3 min.
  *  Taps less than a second apart are you counting a batch of encounters, so they never set the limit. */
 const BURST_MS = 1000;
 function breakLimit(e) {
   const g = (e.gaps || []).filter(x => x >= BURST_MS).sort((a, b) => a - b);
   if (!g.length) return 3 * 60e3;
   const med = g.length % 2 ? g[(g.length - 1) / 2] : (g[g.length / 2 - 1] + g[g.length / 2]) / 2;
-  return Math.min(60 * 60e3, Math.max(3e3, 2 * med));
+  return Math.min(60 * 60e3, Math.max(3e3, 3 * med));
 }
 const trackedMs = e => e.activeMs + (e.paceLog || []).reduce((s, x) => s + x.ms, 0);
 const trackedEnc = e => e.timedEnc + (e.paceLog || []).reduce((s, x) => s + x.enc, 0);
@@ -1630,7 +1634,9 @@ try { document.fonts && document.fonts.ready.then(fitCount); } catch (err) {}
 function todayHTML(e, pick) {
   const today = dayKey(Date.now()), days = []; for (let i = 13; i >= 0; i--) days.push(addDays(today, -i));
   const sel = pick && days.includes(pick) ? pick : today, dl = e.daily || {}, at = k => dl[k] || [0, 0];
-  const [n, ms] = at(sel), max = Math.max(1, ...days.map(k => at(k)[0]));
+  const [n, ms] = at(sel), top = Math.max(1, ...days.map(k => at(k)[0]));
+  const max = (() => { const p = Math.pow(10, Math.floor(Math.log10(top))); return [1, 2, 2.5, 5, 10].map(m => m * p).find(v => v >= top); })();   // a round number for the top of the axis
+  const tick = v => v >= 1000 ? (v / 1000).toFixed(v % 1000 ? 1 : 0).replace(/\.0$/, "") + "k" : String(v);
   const ht = huntTime(e), avg = ht.ms >= 60e3 && ht.enc ? ht.enc / (ht.ms / 3600e3) : 0, pace = ms >= 60e3 ? n / (ms / 3600e3) : 0;
   const diff = pace && avg ? Math.round((pace / avg - 1) * 100) : null;
   const week = days.slice(7).reduce((s, k) => s + at(k)[0], 0);
@@ -1643,8 +1649,8 @@ function todayHTML(e, pick) {
       <span><b class="num">${pace ? fmt(pace) + "<small>/h</small>" : "—"}</b><em>${diff == null ? "pace" : `${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff)}% vs avg`}</em></span>
     </div></div>
     <div class="td-side td-hist"><div class="td-head"><span class="label">Last 14 days</span><span class="muted" style="font-size:11px">${fmt(week)} this week</span></div>
-    <div class="td-bars" role="group" aria-label="Encounters each day, last 14 days">${days.map(k => { const v = at(k)[0], h = v ? Math.max(6, Math.round(v / max * 100)) : 0;
-      return `<button class="td-b${k === sel ? " on" : ""}${k === today ? " now" : ""}" data-tday="${k}" aria-label="${keyDate(k).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}: ${fmt(v)} encounters"><span style="height:${h}%"></span><i>${"MTWTFSS"[(keyDate(k).getDay() + 6) % 7]}</i></button>`; }).join("")}</div></div>`;
+    <div class="td-bars" role="group" aria-label="Encounters each day, last 14 days"><div class="td-grid" aria-hidden="true">${[1, 0.5, 0].map(f => `<span style="bottom:${f * 100}%"><em>${tick(max * f)}</em></span>`).join("")}</div>${days.map(k => { const v = at(k)[0], h = v ? Math.max(3, Math.round(v / max * 100)) : 0;
+      return `<button class="td-b${k === sel ? " on" : ""}${k === today ? " now" : ""}" data-tday="${k}" aria-label="${keyDate(k).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}: ${fmt(v)} encounters"><span style="height:calc((100% - 12px) * ${h / 100})"></span><i>${"MTWTFSS"[(keyDate(k).getDay() + 6) % 7]}</i></button>`; }).join("")}</div></div>`;
 }
 function counterKV(e, r, rate) {
   return `<div><span class="label">Odds ratio</span><span class="v">${fmt(r, 2)}×</span></div>

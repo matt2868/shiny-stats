@@ -1635,7 +1635,8 @@ function todayHTML(e, pick) {
   const today = dayKey(Date.now()), days = []; for (let i = 13; i >= 0; i--) days.push(addDays(today, -i));
   const sel = pick && days.includes(pick) ? pick : today, dl = e.daily || {}, at = k => dl[k] || [0, 0];
   const [n, ms] = at(sel), top = Math.max(1, ...days.map(k => at(k)[0]));
-  const max = (() => { const p = Math.pow(10, Math.floor(Math.log10(top))); return [1, 2, 2.5, 5, 10].map(m => m * p).find(v => v >= top); })();   // a round number for the top of the axis
+  const step = (() => { for (let p = 1; ; p *= 10) for (const m of [1, 2, 2.5, 5]) { const st = m * p; if (st % 1 === 0 && Math.ceil(top / st) <= 4) return st; } })();   // a round step so the gridlines hug the busiest day (at most 4 lines above zero)
+  const max = Math.ceil(top / step) * step, ticks = Array.from({ length: max / step + 1 }, (_, i) => max - i * step);
   const tick = v => v >= 1000 ? (v / 1000).toFixed(v % 1000 ? 1 : 0).replace(/\.0$/, "") + "k" : String(v);
   const ht = huntTime(e), avg = ht.ms >= 60e3 && ht.enc ? ht.enc / (ht.ms / 3600e3) : 0, pace = ms >= 60e3 ? n / (ms / 3600e3) : 0;
   const diff = pace && avg ? Math.round((pace / avg - 1) * 100) : null;
@@ -1649,7 +1650,7 @@ function todayHTML(e, pick) {
       <span><b class="num">${pace ? fmt(pace) + "<small>/h</small>" : "—"}</b><em>${diff == null ? "pace" : `${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff)}% vs avg`}</em></span>
     </div></div>
     <div class="td-side td-hist"><div class="td-head"><span class="label">Last 14 days</span><span class="muted" style="font-size:11px">${fmt(week)} this week</span></div>
-    <div class="td-bars" role="group" aria-label="Encounters each day, last 14 days"><div class="td-grid" aria-hidden="true">${[1, 0.5, 0].map(f => `<span style="bottom:${f * 100}%"><em>${tick(max * f)}</em></span>`).join("")}</div>${days.map(k => { const v = at(k)[0], h = v ? Math.max(3, Math.round(v / max * 100)) : 0;
+    <div class="td-bars" role="group" aria-label="Encounters each day, last 14 days"><div class="td-grid" aria-hidden="true">${ticks.map(v => `<span style="bottom:${v / max * 100}%"><em>${tick(v)}</em></span>`).join("")}</div>${days.map(k => { const v = at(k)[0], h = v ? Math.max(3, Math.round(v / max * 100)) : 0;
       return `<button class="td-b${k === sel ? " on" : ""}${k === today ? " now" : ""}" data-tday="${k}" aria-label="${keyDate(k).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}: ${fmt(v)} encounters"><span style="height:calc((100% - 12px) * ${h / 100})"></span><i>${"MTWTFSS"[(keyDate(k).getDay() + 6) % 7]}</i></button>`; }).join("")}</div></div>`;
 }
 function counterKV(e, r, rate) {

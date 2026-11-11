@@ -971,7 +971,8 @@ function normalise(raw) {
     startDate: /^\d{4}-\d{2}-\d{2}$/.test(raw.startDate || "") ? raw.startDate : "",
     endDate: /^\d{4}-\d{2}-\d{2}$/.test(raw.endDate || "") ? raw.endDate : "",
     paceLog: Array.isArray(raw.paceLog) ? raw.paceLog.filter(x => x && x.ms > 0).map(x => ({ at: Number(x.at) || 0, label: String(x.label || "").slice(0, 60), enc: Number(x.enc) || 0, ms: Number(x.ms) || 0 })).slice(-10) : [],
-    gaps: Array.isArray(raw.gaps) ? raw.gaps.map(Number).filter(x => x > 0).slice(-20) : [],
+    gaps: raw.gapsV === 2 ? (Array.isArray(raw.gaps) ? raw.gaps.map(Number).filter(x => x > 0).slice(-20) : []) : gapsFromLog(raw.tapLog),   // older saves stored gaps per encounter; rebuild them per tap
+    gapsV: 2,
     tapLog: Array.isArray(raw.tapLog) ? raw.tapLog.filter(x => Array.isArray(x) && x.length === 2).map(([t, d]) => [Number(t) || 0, Number(d) || 0]).slice(-40) : [],
     gaveUp: raw.gaveUp === true || /^(y|yes|true|1)$/i.test(String(raw.gaveUp ?? "")),
     evolvedTo: Array.isArray(raw.evolvedTo) ? [...new Set(raw.evolvedTo.map(Number).filter(n => n > 0 && n <= 1025))] : [],
@@ -1479,8 +1480,14 @@ function fitCount() {
 }
 window.addEventListener("resize", () => { fitCount(); snapPx(document); });
 /** Gap beyond which a pause counts as a break: three times your typical gap (median of the last 20), between 3 s and 1 hour. Before your first gap, 3 min.
- *  Taps less than a second apart are you counting a batch of encounters, so they never set the limit. */
+ *  Gaps are measured per tap, not per encounter: a +5 batch is one tap, and a quick run of taps under a second apart is one batch. */
 const BURST_MS = 1000;
+/** Rebuild the per-tap gaps from the recent tap log (used once, for saves from before batches were handled this way). */
+function gapsFromLog(log) {
+  const ts = (Array.isArray(log) ? log : []).filter(x => Array.isArray(x) && Number(x[1]) > 0).map(x => Number(x[0]) || 0).sort((a, b) => a - b), g = [];
+  for (let i = 1; i < ts.length; i++) { const d = ts[i] - ts[i - 1]; if (d >= BURST_MS && d < 2 * 3600e3) g.push(d); }
+  return g.slice(-20);
+}
 function breakLimit(e) {
   const g = (e.gaps || []).filter(x => x >= BURST_MS).sort((a, b) => a - b);
   if (!g.length) return 3 * 60e3;
@@ -1698,8 +1705,9 @@ async function tap(delta) {
   if (delta > 0) {
     if (e.lastTapAt) {
       const gap = now - e.lastTapAt;
-      if (gap < breakLimit(e) * delta) { e.activeMs += gap; e.timedEnc += delta; day[1] += gap; }      // counts as hunting time
-      if (gap < 2 * 3600e3 && gap / delta >= BURST_MS) e.gaps = [...(e.gaps || []).filter(x => x >= BURST_MS), Math.round(gap / delta)].slice(-20);  // every gap informs the typical pace
+      if (gap < breakLimit(e)) { e.activeMs += gap; e.timedEnc += delta; day[1] += gap; }      // counts as hunting time (a batch is one tap, whatever its size)
+      if (gap < 2 * 3600e3 && gap >= BURST_MS) e.gaps = [...(e.gaps || []).filter(x => x >= BURST_MS), gap].slice(-20);  // quick follow-up taps in a run are part of one batch, so they don't count
+      e.gapsV = 2;
     }
     e.lastTapAt = now;
   }
@@ -3413,7 +3421,7 @@ function paceSheet() {
       <span style="display:flex;flex-direction:column;gap:2px"><span class="label" style="color:var(--lcd-mid)">This stretch</span><span style="font-size:13px">${fmt(e.timedEnc)} timed encounters · ${dur(e.activeMs)}</span></span>
       <span style="font-family:var(--font-display);font-size:44px;line-height:1">${cur ? fmt(cur) : "—"}<small style="font-size:16px">/h</small></span>
     </div>
-    <p class="muted" style="margin:0;font-size:13px">Pauses longer than ${ago(breakLimit(e)).replace(" ago", "")} between taps count as breaks and are left out. Quick taps under a second apart (counting a batch) don't change that limit.</p>
+    <p class="muted" style="margin:0;font-size:13px">Pauses longer than ${ago(breakLimit(e)).replace(" ago", "")} between taps count as breaks and are left out. The gap is measured between taps, so a batch (+5, or a quick run of taps under a second apart) counts as one tap, whatever its size.</p>
     <div class="field"><label class="label" for="f-pacelabel">Name this stretch (optional)</label><input id="f-pacelabel" autocomplete="off" placeholder="e.g. old method, with Repel trick"></div>
     <button class="btn berry" data-act="pacereset" ${e.timedEnc || e.activeMs ? "" : "disabled"}>Reset pace</button>
     <span class="muted" id="pacehint" style="font-size:13px;margin-top:-6px">Saves this stretch below and starts timing afresh from your next taps. Your encounter count isn't changed.</span>
